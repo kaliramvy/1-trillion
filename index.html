@@ -125,12 +125,11 @@ body {
   font-variant-numeric: tabular-nums;
 }
 .go {
-  position: relative; width: 32px; height: 32px; border-radius: 50%; border: 0; cursor: pointer;
+  position: relative; width: 64px; height: 64px; border-radius: 50%; border: 0; cursor: pointer;
   background: var(--ink); color: var(--bg); display: grid; place-items: center;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, .18); transition: transform .08s ease;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .18); transition: transform .08s ease;
 }
-.go::before { content: ""; position: absolute; inset: -8px; border-radius: 50%; }  /* bigger tap area than it looks */
-.go svg { width: 18px; height: 18px; }
+.go svg { width: 30px; height: 30px; }
 .go:active { transform: scale(.92); }
 .go:focus-visible { outline-offset: 4px; }
 .err { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 15px; font-weight: 600; color: var(--cut); }
@@ -202,7 +201,7 @@ body {
       <input id="addAmount" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Amount to add, in rupees">
     </label>
     <button class="go" type="submit" aria-label="Update total">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
     </button>
     <label class="box box-cut" for="cutAmount">
       <input id="cutAmount" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Amount to deduct, in rupees">

@@ -1,6 +1,6 @@
 // 1 Trillion offline cache. Change VERSION whenever any app file changes,
 // so phones pick up the new files on their next open.
-const VERSION = "1-trillion-v3";
+const VERSION = "1-trillion-v4";
 const ASSETS = [
   "./",
   "./index.html",
