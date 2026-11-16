@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>1 Trillion</title>
+<meta name="description" content="Your total money. Add in green, deduct in red. Works offline.">
+<meta name="theme-color" content="#eef2ef" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1411" media="(prefers-color-scheme: dark)">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="1 Trillion">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preload" href="fonts/bricolage-grotesque-800.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+@font-face { font-family: "Bricolage Grotesque"; font-weight: 600; font-display: swap; src: url("fonts/bricolage-grotesque-600.woff2") format("woff2"); }
+@font-face { font-family: "Bricolage Grotesque"; font-weight: 800; font-display: swap; src: url("fonts/bricolage-grotesque-800.woff2") format("woff2"); }
+@font-face { font-family: "Figtree"; font-weight: 600; font-display: swap; src: url("fonts/figtree-600.woff2") format("woff2"); }
+@font-face { font-family: "Figtree"; font-weight: 700; font-display: swap; src: url("fonts/figtree-700.woff2") format("woff2"); }
+
+:root {
+  /* Layout: total at the top; under it one row of green box, round button, red box; then the line chart card. */
+  --bg: #eef2ef;
+  --surface: #ffffff;
+  --ink: #11211a;
+  --ink-2: #53645c;
+  --line: #dbe3de;
+  --grow: #0e7a4e;
+  --cut: #b8473c;
+  --grow-wash: #dcefe5;
+  --cut-wash: #f6e3e0;
+  --font-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --font-body: "Figtree", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0e1411;
+    --surface: #161e1a;
+    --ink: #e8efeb;
+    --ink-2: #a3b2ab;
+    --line: #26312c;
+    --grow: #45c08a;
+    --cut: #e7867a;
+    --grow-wash: #15291f;
+    --cut-wash: #2c1a17;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; min-height: 100%; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: none;
+}
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+:focus-visible { outline: 3px solid var(--grow); outline-offset: 3px; }
+
+.app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: calc(36px + env(safe-area-inset-top)) calc(16px + env(safe-area-inset-right)) calc(32px + env(safe-area-inset-bottom)) calc(16px + env(safe-area-inset-left));
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+/* Total */
+.top { text-align: center; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.label { margin: 0; font-size: 14px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-2); }
+.total {
+  margin: 0; font-family: var(--font-display); font-weight: 800;
+  font-size: clamp(48px, 15vw, 76px); line-height: 1.02; letter-spacing: -.02em;
+  font-variant-numeric: tabular-nums; overflow-wrap: anywhere;
+}
+.total[data-neg="1"] { color: var(--cut); }
+.total.flash-up { animation: flashUp .9s ease-out; }
+.total.flash-down { animation: flashDown .9s ease-out; }
+@keyframes flashUp { 0%, 55% { color: var(--grow); } }
+@keyframes flashDown { 0%, 55% { color: var(--cut); } }
+.change {
+  margin: 0; min-height: 24px; font-size: 18px; font-weight: 700; font-variant-numeric: tabular-nums;
+  opacity: 0; transition: opacity .4s ease;
+}
+.change.show { opacity: 1; transition: none; }
+.change[data-dir="up"] { color: var(--grow); }
+.change[data-dir="down"] { color: var(--cut); }
+.change[data-dir="mixed"] { color: var(--ink-2); }
+
+/* Green box | round button | red box, side by side */
+.controls {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center; gap: 10px; margin: 0;
+}
+.box {
+  display: flex; flex-direction: column; justify-content: center; gap: 2px; min-height: 96px;
+  padding: 10px 12px; border-radius: 20px; border: 2px solid transparent; cursor: text; min-width: 0;
+}
+.box-add { background: var(--grow-wash); }
+.box-cut { background: var(--cut-wash); }
+.box-add:focus-within { border-color: var(--grow); }
+.box-cut:focus-within { border-color: var(--cut); }
+.box-label { font-size: 13px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.box-add .box-label { color: var(--grow); }
+.box-cut .box-label { color: var(--cut); }
+.amount { display: flex; align-items: center; gap: 3px; min-width: 0; }
+.rs { font-weight: 700; font-size: 20px; color: var(--ink-2); }
+.box input {
+  flex: 1; min-width: 0; width: 100%; border: 0; outline: none; background: transparent; color: var(--ink);
+  font-family: var(--font-display); font-weight: 600; font-size: 28px; padding: 4px 0;
+  font-variant-numeric: tabular-nums; text-align: center;
+}
+.box input::placeholder { color: var(--ink-2); opacity: .45; }
+.go {
+  width: 64px; height: 64px; border-radius: 50%; border: 0; cursor: pointer;
+  background: var(--ink); color: var(--bg); display: grid; place-items: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .18); transition: transform .08s ease;
+}
+.go svg { width: 30px; height: 30px; }
+.go:active { transform: scale(.93); }
+.go:focus-visible { outline-offset: 4px; }
+.err { grid-column: 1 / -1; margin: 0; text-align: center; font-size: 15px; font-weight: 600; color: var(--cut); }
+.err:empty { display: none; }
+
+/* Line chart card */
+.chart-card {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 22px;
+  padding: 12px 0 6px; display: flex; flex-direction: column; gap: 6px;
+}
+.chart-head { display: flex; justify-content: center; padding: 0 12px; }
+.seg { display: inline-flex; background: var(--bg); border-radius: 999px; padding: 3px; gap: 2px; }
+.seg button {
+  font: inherit; font-size: 14px; font-weight: 700; border: 0; background: transparent; color: var(--ink-2);
+  padding: 6px 16px; border-radius: 999px; cursor: pointer; min-height: 36px; white-space: nowrap;
+}
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .16); }
+
+.chart-body { position: relative; display: grid; grid-template-columns: 56px minmax(0, 1fr); height: 200px; }
+.yaxis { display: block; width: 56px; height: 200px; }
+.yaxis text, .plot text {
+  font-family: var(--font-body); font-size: 11px; font-weight: 600; fill: var(--ink-2); font-variant-numeric: tabular-nums;
+}
+.plot text.mark { fill: var(--ink); font-weight: 700; }
+.plot text.now { fill: var(--ink); }
+.scroller {
+  overflow-x: auto; overflow-y: hidden; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain; touch-action: pan-x; border-radius: 0 0 22px 0;
+}
+.scroller::-webkit-scrollbar { display: none; }
+.plot { position: relative; height: 200px; }
+.plot svg { display: block; }
+.plot .grid { stroke: var(--line); stroke-width: 1; shape-rendering: crispEdges; }
+.plot .ln { fill: none; stroke: var(--grow); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.plot .end, .plot .sel { fill: var(--grow); stroke: var(--surface); stroke-width: 2.5; }
+.plot .cross { stroke: var(--ink-2); stroke-width: 1; stroke-opacity: .45; }
+.chart-empty {
+  position: absolute; inset: 0 0 28px 56px; display: grid; place-items: center; margin: 0; padding: 0 16px;
+  color: var(--ink-2); font-size: 14px; font-weight: 600; text-align: center;
+}
+.tip {
+  position: absolute; left: 0; top: 0; z-index: 2; pointer-events: none;
+  background: var(--ink); color: var(--surface); border-radius: 10px; padding: 6px 10px;
+  font-size: 13px; line-height: 1.3; white-space: nowrap; font-variant-numeric: tabular-nums;
+  display: flex; flex-direction: column; box-shadow: 0 4px 14px rgba(0, 0, 0, .2);
+}
+.tip strong { font-size: 15px; font-family: var(--font-display); font-weight: 600; }
+.tip span { opacity: .8; }
+
+@media (prefers-reduced-motion: reduce) {
+  .total.flash-up, .total.flash-down { animation: none; }
+  .go { transition: none; }
+}
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="top" aria-label="Total money">
+    <p class="total" id="total">₹0</p>
+    <p class="change" id="change" aria-live="polite"></p>
+  </section>
+
+  <form class="controls" id="entry" novalidate>
+    <label class="box box-add" for="addAmount">
+      <input id="addAmount" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Amount to add, in rupees">
+    </label>
+
+    <button class="go" type="submit" aria-label="Update total">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+    </button>
+
+    <label class="box box-cut" for="cutAmount">
+      <input id="cutAmount" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" aria-label="Amount to deduct, in rupees">
+    </label>
+
+    <p class="err" id="err" role="alert"></p>
+  </form>
+
+  <section class="chart-card" aria-label="Total money over time">
+    <div class="chart-head">
+      <div class="seg" role="group" aria-label="Chart view">
+        <button type="button" data-view="day" aria-pressed="true">Daily</button>
+        <button type="button" data-view="week" aria-pressed="false">Weekly</button>
+        <button type="button" data-view="month" aria-pressed="false">Monthly</button>
+      </div>
+    </div>
+    <div class="chart-body">
+      <svg class="yaxis" id="yAxis" aria-hidden="true"></svg>
+      <div class="scroller" id="scroller" tabindex="0" aria-label="Chart. Swipe sideways to see older days. Use left and right arrow keys to read values.">
+        <div class="plot" id="plot">
+          <svg id="plotSvg" role="img" aria-label="Line chart of total money"></svg>
+          <div class="tip" id="tip" hidden></div>
+        </div>
+      </div>
+      <p class="chart-empty" id="chartEmpty" hidden>Your line starts after your first entry.</p>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  "use strict";
+
+  var $ = function (id) { return document.getElementById(id); };
+  var reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+  /* ---------- Money and dates (amounts are kept as whole paise) ---------- */
+  var fmtINR = new Intl.NumberFormat("en-IN", { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  var fmtCompact;
+  try { fmtCompact = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 }); }
+  catch (e) { fmtCompact = fmtINR; }
+  function money(paise, withSign) {
+    var s = "₹" + fmtINR.format(Math.abs(paise) / 100);
+    if (paise < 0) return "−" + s;
+    if (withSign && paise > 0) return "+" + s;
+    return s;
+  }
+  function moneyShort(paise) { return (paise < 0 ? "−" : "") + "₹" + fmtCompact.format(Math.abs(paise) / 100); }
+  function newId() { return Date.now().toString(36) + Math.random().toString(36).slice(2, 8); }
+  function signed(e) { return e.t === "in" ? e.a : -e.a; }
+
+  /* ---------- Storage: this device only ---------- */
+  var LS_KEY = "trillion.entries.v1";
+  function readAll() {
+    try { var o = JSON.parse(localStorage.getItem(LS_KEY) || "{}"); return o && typeof o === "object" ? o : {}; }
+    catch (e) { return {}; }
+  }
+  function writeAll(o) {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(o)); return true; } catch (e) { return false; }
+  }
+  function loadEntries() {
+    var o = readAll(), list = [];
+    Object.keys(o).forEach(function (id) {
+      var e = o[id], a = Math.round(Number(e && e.a)), ts = Number(e && e.ts);
+      if (!(a > 0) || !isFinite(ts) || (e.t !== "in" && e.t !== "out")) return;
+      list.push({ id: id, t: e.t, a: a, ts: ts });
+    });
+    list.sort(function (x, y) { return x.ts - y.ts; });
+    return list;
+  }
+
+  /* ---------- Total ---------- */
+  var shown = 0, rafId = 0;
+  function showTotal(target, animate) {
+    var el = $("total");
+    el.dataset.neg = target < 0 ? "1" : "0";
+    cancelAnimationFrame(rafId);
+    var from = shown;
+    if (!animate || reduceMotion || from === target) { shown = target; el.textContent = money(target); return; }
+    el.classList.remove("flash-up", "flash-down");
+    void el.offsetWidth;
+    el.classList.add(target > from ? "flash-up" : "flash-down");
+    var start = performance.now(), dur = 750;
+    (function step(t) {
+      var p = Math.min(1, (t - start) / dur), k = 1 - Math.pow(1 - p, 3);
+      if (p < 1) {
+        shown = Math.round((from + (target - from) * k) / 100) * 100;
+        el.textContent = money(shown);
+        rafId = requestAnimationFrame(step);
+      } else { shown = target; el.textContent = money(target); }
+    })(start);
+  }
+
+  var changeTimer = 0;
+  function showChange(add, cut) {
+    var el = $("change"), parts = [];
+    if (add) parts.push(money(add, true));
+    if (cut) parts.push(money(-cut));
+    el.textContent = parts.join("  ");
+    el.dataset.dir = add && cut ? "mixed" : add ? "up" : "down";
+    el.classList.add("show");
+    clearTimeout(changeTimer);
+    changeTimer = setTimeout(function () { el.classList.remove("show"); }, 2500);
+  }
+
+  /* ---------- Line chart ---------- */
+  var view = "day";
+  var STEP = { day: 52, week: 60, month: 68 };
+  var H = 200, PAD_T = 16, PAD_B = 28, PAD_L = 26, PAD_R = 30, AXIS_W = 56;
+  var pts = [], geo = null, selected = -1, drawQueued = false;
+
+  function periodStart(date, v) {
+    var d = new Date(date.getTime()); d.setHours(0, 0, 0, 0);
+    if (v === "week") d.setDate(d.getDate() - (d.getDay() + 6) % 7);   // weeks start on Monday
+    else if (v === "month") d.setDate(1);
+    return d;
+  }
+  function nextPeriod(d, v) {
+    var n = new Date(d.getTime());
+    if (v === "day") n.setDate(n.getDate() + 1);
+    else if (v === "week") n.setDate(n.getDate() + 7);
+    else n.setMonth(n.getMonth() + 1);
+    return n;
+  }
+  // Trading-chart style: year where a year starts (and at the first point), month name where a month starts, otherwise the day number.
+  function axisLabel(i) {
+    var d = pts[i].d, prev = i > 0 ? pts[i - 1].d : null;
+    if (!prev || d.getFullYear() !== prev.getFullYear()) return { text: String(d.getFullYear()), mark: true };
+    if (view === "month" || d.getMonth() !== prev.getMonth()) return { text: d.toLocaleDateString("en-US", { month: "short" }), mark: true };
+    return { text: String(d.getDate()), mark: false };
+  }
+  function tipLabel(p, last) {
+    var d = p.d;
+    if (view === "day") return last ? "Today" : d.toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" });
+    if (view === "week") return (last ? "This week, from " : "Week from ") + d.toLocaleDateString("en-IN", { day: "numeric", month: "short" });
+    return d.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  }
+
+  // Closing total at the end of each day / week / month, from the first entry up to now.
+  function buildPoints(list) {
+    if (!list.length) return [];
+    var end = periodStart(new Date(), view);
+    var p = periodStart(new Date(list[0].ts), view);
+    if (view === "day") {
+      var earliest = new Date(end.getTime()); earliest.setDate(earliest.getDate() - 399);
+      if (p < earliest) p = earliest;
+    }
+    var out = [], bal = 0, i = 0;
+    while (p <= end) {
+      var nx = nextPeriod(p, view);
+      while (i < list.length && list[i].ts < nx.getTime()) { bal += signed(list[i]); i++; }
+      out.push({ d: new Date(p.getTime()), bal: bal });
+      p = nx;
+    }
+    return out;
+  }
+
+  function niceStep(span, count) {
+    var raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw))), n = raw / mag;
+    return (n <= 1 ? 1 : n <= 2 ? 2 : n <= 2.5 ? 2.5 : n <= 5 ? 5 : 10) * mag;
+  }
+  function ticksFor(lo, hi) {
+    var step = niceStep(hi - lo, 3), t0 = Math.floor(lo / step) * step, t1 = Math.ceil(hi / step) * step, out = [];
+    for (var v = t0; v <= t1 + step * 0.001; v += step) out.push(Math.round(v));
+    return out;
+  }
+  // Short axis labels (₹1.36L, ₹45K) with just enough decimals to keep every label different.
+  var compactFmts = {};
+  function axisMoney(ticks) {
+    for (var dgt = 0; dgt <= 3; dgt++) {
+      var f = compactFmts[dgt];
+      if (!f) { try { f = compactFmts[dgt] = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: dgt }); } catch (e) { f = fmtINR; } }
+      var exact = compactFmts.x;
+      if (!exact) { try { exact = compactFmts.x = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 4 }); } catch (e) { exact = fmtINR; } }
+      // Use these decimals only if no label gets rounded (₹1.25L must not show as ₹1.3L).
+      var ok = ticks.every(function (t) { return f.format(Math.abs(t) / 100) === exact.format(Math.abs(t) / 100); });
+      if (ok) return ticks.map(function (t) { return (t < 0 ? "−" : "") + "₹" + f.format(Math.abs(t) / 100); });
+    }
+    return ticks.map(function (t) { return money(t); });
+  }
+
+  // Smooth curve that never overshoots the real values (monotone cubic).
+  function curvePath(xs, ys) {
+    var n = xs.length, i;
+    if (n < 2) return "";
+    if (n === 2) return "M" + xs[0].toFixed(1) + " " + ys[0].toFixed(1) + "L" + xs[1].toFixed(1) + " " + ys[1].toFixed(1);
+    var dx = [], m = [], t = new Array(n);
+    for (i = 0; i < n - 1; i++) { dx[i] = xs[i + 1] - xs[i]; m[i] = (ys[i + 1] - ys[i]) / dx[i]; }
+    t[0] = m[0]; t[n - 1] = m[n - 2];
+    for (i = 1; i < n - 1; i++) t[i] = m[i - 1] * m[i] <= 0 ? 0 : (m[i - 1] + m[i]) / 2;
+    for (i = 0; i < n - 1; i++) {
+      if (m[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+      var a = t[i] / m[i], b = t[i + 1] / m[i], s = a * a + b * b;
+      if (s > 9) { var tau = 3 / Math.sqrt(s); t[i] = tau * a * m[i]; t[i + 1] = tau * b * m[i]; }
+    }
+    var d = "M" + xs[0].toFixed(1) + " " + ys[0].toFixed(1);
+    for (i = 0; i < n - 1; i++) {
+      var h = dx[i] / 3;
+      d += "C" + (xs[i] + h).toFixed(1) + " " + (ys[i] + t[i] * h).toFixed(1) + " " +
+        (xs[i + 1] - h).toFixed(1) + " " + (ys[i + 1] - t[i + 1] * h).toFixed(1) + " " +
+        xs[i + 1].toFixed(1) + " " + ys[i + 1].toFixed(1);
+    }
+    return d;
+  }
+
+  // Sizes the swipeable strip and opens it at the latest point.
+  function renderChart() {
+    var scroller = $("scroller"), plot = $("plot"), svg = $("plotSvg");
+    pts = buildPoints(loadEntries());
+    selected = -1;
+    var n = pts.length;
+    $("chartEmpty").hidden = n > 0;
+    var avail = Math.max(200, Math.round(scroller.clientWidth || 300));
+    var step = STEP[view], W = avail;
+    if (n > 1) {
+      W = Math.max(avail, PAD_L + (n - 1) * step + PAD_R);
+      if (W === avail) step = (avail - PAD_L - PAD_R) / (n - 1);
+    }
+    geo = { n: n, step: step, avail: avail, W: W, Y: null };
+    plot.style.width = W + "px";
+    svg.setAttribute("width", W);
+    svg.setAttribute("height", H);
+    svg.setAttribute("viewBox", "0 0 " + W + " " + H);
+    svg.setAttribute("aria-label", n
+      ? ({ day: "Daily", week: "Weekly", month: "Monthly" })[view] + " total money: " + money(pts[0].bal) + " at the start, " + money(pts[n - 1].bal) + " now"
+      : "No entries yet");
+    scroller.scrollLeft = scroller.scrollWidth;
+    drawChart();
+  }
+  function X(i) { return geo.n === 1 ? geo.avail / 2 : PAD_L + i * geo.step; }
+
+  // Draws the line with the scale fitted to the points in view, like a trading chart.
+  function drawChart() {
+    drawQueued = false;
+    if (!geo) return;
+    var sc = $("scroller"), svg = $("plotSvg"), yax = $("yAxis"), n = geo.n;
+    var i0 = 0, i1 = n - 1;
+    if (n > 1) {
+      i0 = Math.max(0, Math.floor((sc.scrollLeft - PAD_L) / geo.step) - 1);
+      i1 = Math.min(n - 1, Math.ceil((sc.scrollLeft + geo.avail - PAD_L) / geo.step) + 1);
+    }
+    var lo = Infinity, hi = -Infinity, i;
+    for (i = i0; i <= i1 && n; i++) { lo = Math.min(lo, pts[i].bal); hi = Math.max(hi, pts[i].bal); }
+    if (!n) { lo = 0; hi = 100000; }
+    var minSpan = Math.max(100000, Math.abs(hi) * 0.02);
+    if (hi - lo < minSpan) { var mid = (hi + lo) / 2; lo = mid - minSpan / 2; hi = mid + minSpan / 2; }
+    var pad = (hi - lo) * 0.14, lo2 = lo - pad, hi2 = hi + pad;
+    if (lo >= 0 && lo2 < 0) lo2 = 0;
+    var tk = ticksFor(lo2, hi2), t0 = tk[0], t1 = tk[tk.length - 1];
+    var plotH = H - PAD_T - PAD_B;
+    var Y = geo.Y = function (v) { return PAD_T + (t1 - v) / (t1 - t0) * plotH; };
+
+    var labels = axisMoney(tk), ya = [];
+    tk.forEach(function (t, k) {
+      ya.push('<text x="' + (AXIS_W - 6) + '" y="' + (Y(t) + 4).toFixed(1) + '" text-anchor="end">' + labels[k] + "</text>");
+    });
+    yax.setAttribute("viewBox", "0 0 " + AXIS_W + " " + H);
+    yax.innerHTML = ya.join("");
+
+    var out = [];
+    tk.forEach(function (t) {
+      var y = Y(t).toFixed(1);
+      out.push('<line class="grid" x1="0" x2="' + geo.W + '" y1="' + y + '" y2="' + y + '"/>');
+    });
+    if (n) {
+      var xs = [], ys = [];
+      for (i = 0; i < n; i++) { xs.push(X(i)); ys.push(Y(pts[i].bal)); }
+      out.push('<path class="ln" d="' + curvePath(xs, ys) + '"/>');
+      out.push('<circle class="end" cx="' + xs[n - 1].toFixed(1) + '" cy="' + ys[n - 1].toFixed(1) + '" r="5"/>');
+      var every = Math.max(1, Math.ceil(46 / geo.step));
+      for (i = n - 1; i >= 0; i -= every) {
+        var lb = axisLabel(i), cls = (lb.mark ? "mark" : "") + (i === n - 1 ? " now" : "");
+        out.push('<text x="' + xs[i].toFixed(1) + '" y="' + (H - 9) + '" text-anchor="middle"' + (cls.trim() ? ' class="' + cls.trim() + '"' : "") + ">" +
+          lb.text + "</text>");
+      }
+      out.push('<line id="cross" class="cross" x1="0" x2="0" y1="' + PAD_T + '" y2="' + (H - PAD_B) + '" visibility="hidden"/>');
+      out.push('<circle id="selDot" class="sel" r="6" visibility="hidden"/>');
+    }
+    svg.innerHTML = out.join("");
+    if (selected >= 0) placeSelection(); else $("tip").hidden = true;
+  }
+
+  function placeSelection() {
+    var i = selected, p = pts[i];
+    if (!p || !geo || !geo.Y) return;
+    var x = X(i), y = geo.Y(p.bal), last = i === geo.n - 1;
+    var sc0 = $("scroller");
+    if (x < sc0.scrollLeft - 2 || x > sc0.scrollLeft + geo.avail + 2) { $("tip").hidden = true; return; }   // tapped point scrolled out of view
+    var cross = $("cross"), dot = $("selDot");
+    cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("visibility", "visible");
+    dot.setAttribute("cx", x); dot.setAttribute("cy", y); dot.setAttribute("visibility", "visible");
+    var tip = $("tip");
+    tip.textContent = "";
+    var s1 = document.createElement("strong"); s1.textContent = money(p.bal);
+    var s2 = document.createElement("span"); s2.textContent = tipLabel(p, last);
+    tip.append(s1, s2);
+    if (i > 0) {
+      var diff = p.bal - pts[i - 1].bal, s3 = document.createElement("span");
+      s3.textContent = diff === 0 ? "No change" : money(diff, true) + (view === "day" ? " that day" : view === "week" ? " that week" : " that month");
+      tip.append(s3);
+    }
+    tip.hidden = false;
+    var sc = $("scroller"), tw = tip.offsetWidth, th = tip.offsetHeight;
+    var minL = sc.scrollLeft + 4, maxL = sc.scrollLeft + geo.avail - tw - 4;
+    tip.style.left = Math.max(minL, Math.min(maxL, x - tw / 2)) + "px";
+    tip.style.top = (y - th - 12 >= 0 ? y - th - 12 : y + 12) + "px";
+  }
+  function selectPoint(i) {
+    if (!geo || !geo.n) return;
+    selected = Math.max(0, Math.min(geo.n - 1, i));
+    placeSelection();
+  }
+  function clearSelection() {
+    selected = -1;
+    $("tip").hidden = true;
+    var c = $("cross"), d = $("selDot");
+    if (c) c.setAttribute("visibility", "hidden");
+    if (d) d.setAttribute("visibility", "hidden");
+  }
+  function indexAt(clientX) {
+    var r = $("plot").getBoundingClientRect(), x = clientX - r.left;
+    return geo.n === 1 ? 0 : Math.round((x - PAD_L) / geo.step);
+  }
+
+  var plotEl = $("plot"), scrollEl = $("scroller");
+  scrollEl.addEventListener("scroll", function () {
+    if (!drawQueued) { drawQueued = true; requestAnimationFrame(drawChart); }
+  }, { passive: true });
+  plotEl.addEventListener("click", function (ev) { if (geo && geo.n) selectPoint(indexAt(ev.clientX)); });
+  plotEl.addEventListener("pointermove", function (ev) { if (ev.pointerType === "mouse" && geo && geo.n) selectPoint(indexAt(ev.clientX)); });
+  plotEl.addEventListener("pointerleave", function (ev) { if (ev.pointerType === "mouse") clearSelection(); });
+  document.addEventListener("click", function (ev) { if (!plotEl.contains(ev.target)) clearSelection(); });
+  scrollEl.addEventListener("keydown", function (ev) {
+    if (!geo || !geo.n) return;
+    if (ev.key === "ArrowLeft" || ev.key === "ArrowRight") {
+      ev.preventDefault();
+      var i = Math.max(0, Math.min(geo.n - 1, (selected < 0 ? geo.n - 1 : selected) + (ev.key === "ArrowLeft" ? -1 : 1)));
+      selected = i;
+      var x = X(i);
+      if (x < scrollEl.scrollLeft + 20 || x > scrollEl.scrollLeft + geo.avail - 20) scrollEl.scrollLeft = x - geo.avail / 2;
+      placeSelection();
+    } else if (ev.key === "Escape") clearSelection();
+  });
+
+  Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) {
+    b.addEventListener("click", function () {
+      view = b.dataset.view;
+      Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (o) {
+        o.setAttribute("aria-pressed", o === b ? "true" : "false");
+      });
+      renderChart();
+    });
+  });
+
+  var lastW = 0;
+  if (window.ResizeObserver) {
+    new ResizeObserver(function () {
+      var w = Math.round(scrollEl.clientWidth);
+      if (w && w !== lastW) { lastW = w; renderChart(); }
+    }).observe(scrollEl);
+  }
+
+  /* ---------- Entry ---------- */
+  // Returns paise, null for an empty box, or NaN for something that isn't an amount.
+  function parseAmount(str) {
+    var s = String(str).replace(/[,\s₹]/g, "");
+    if (s === "") return null;
+    if (!/^\d*\.?\d{0,2}$/.test(s) || s === ".") return NaN;
+    var v = Number(s);
+    if (!(v > 0) || v > 1e9) return NaN;
+    return Math.round(v * 100);
+  }
+
+  var addIn = $("addAmount"), cutIn = $("cutAmount"), err = $("err");
+  [addIn, cutIn].forEach(function (i) {
+    i.addEventListener("input", function () { err.textContent = ""; i.removeAttribute("aria-invalid"); });
+  });
+
+  $("entry").addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var add = parseAmount(addIn.value), cut = parseAmount(cutIn.value);
+    if (add === null && cut === null) { err.textContent = "Type an amount in the green or red box first."; addIn.focus(); return; }
+    if (Number.isNaN(add)) { err.textContent = "The green box needs a number, like 500 or 99.50"; addIn.setAttribute("aria-invalid", "true"); addIn.focus(); return; }
+    if (Number.isNaN(cut)) { err.textContent = "The red box needs a number, like 500 or 99.50"; cutIn.setAttribute("aria-invalid", "true"); cutIn.focus(); return; }
+
+    var o = readAll(), now = Date.now();
+    if (add) o[newId()] = { t: "in", a: add, n: "", ts: now };
+    if (cut) o[newId()] = { t: "out", a: cut, n: "", ts: now };
+    if (!writeAll(o)) { err.textContent = "Couldn't save. Phone storage may be full."; return; }
+
+    addIn.value = ""; cutIn.value = "";
+    if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+    refresh(true);
+    showChange(add || 0, cut || 0);
+  });
+
+  function refresh(animate) {
+    var list = loadEntries(), total = 0;
+    list.forEach(function (e) { total += signed(e); });
+    showTotal(total, animate);
+    renderChart();
+  }
+
+  // Another open copy of the app changed the entries.
+  window.addEventListener("storage", function (ev) { if (ev.key === LS_KEY) refresh(false); });
+  // Start a new day's point if the app stays open past midnight.
+  var lastDay = new Date().toDateString();
+  function dayCheck() { var k = new Date().toDateString(); if (k !== lastDay) { lastDay = k; renderChart(); } }
+  setInterval(dayCheck, 60000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) dayCheck(); });
+
+  refresh(false);
+
+  // Ask the browser not to clear this app's data when space runs low.
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted().then(function (p) { if (!p) return navigator.storage.persist(); }).catch(function () {});
+  }
+  // Offline support.
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  }
+})();
+</script>
+</body>
+</html>
